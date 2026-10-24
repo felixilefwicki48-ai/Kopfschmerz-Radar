@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kopfschmerz-Radar</title>
+    <style>
+      :root {
+        font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        color: #111827;
+        background: #f1f5f9;
+        line-height: 1.45;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 0 0 48px; }
+      header {
+        background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+        color: #fff;
+        padding: 20px 16px 18px;
+      }
+      header h1 { margin: 0; font-size: 1.45rem; display: flex; align-items: center; gap: 10px; }
+      header p { margin: 6px 0 0; opacity: 0.85; font-size: 0.9rem; }
+      main { max-width: 720px; margin: 0 auto; padding: 0 12px; }
+      .card {
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+        padding: 16px; margin-top: 14px; box-shadow: 0 1px 3px rgba(15,23,42,0.06);
+      }
+      h2 { font-size: 1.05rem; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+      label { display: block; font-size: 0.8rem; font-weight: 600; color: #475569; margin: 10px 0 4px; }
+      input, select, textarea {
+        width: 100%; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 9px;
+        font-size: 0.95rem; background: #fff; color: #111827; font-family: inherit;
+      }
+      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+      @media (max-width: 480px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+      .severity-row { display: flex; gap: 8px; }
+      .sev-btn {
+        flex: 1; padding: 10px 0; border: 2px solid #cbd5e1; border-radius: 10px;
+        background: #fff; font-size: 0.9rem; cursor: pointer; text-align: center; font-weight: 600;
+      }
+      .sev-btn.active[data-sev="1"] { border-color: #22c55e; background: #f0fdf4; }
+      .sev-btn.active[data-sev="2"] { border-color: #f59e0b; background: #fffbeb; }
+      .sev-btn.active[data-sev="3"] { border-color: #ef4444; background: #fef2f2; }
+      button.primary {
+        background: #2563eb; color: #fff; border: none; border-radius: 10px;
+        padding: 11px 16px; font-size: 0.95rem; font-weight: 600; cursor: pointer; width: 100%;
+        margin-top: 14px; font-family: inherit;
+      }
+      button.primary:active { background: #1d4ed8; }
+      button.ghost {
+        background: #fff; color: #334155; border: 1px solid #cbd5e1; border-radius: 9px;
+        padding: 8px 12px; font-size: 0.82rem; cursor: pointer; font-family: inherit;
+      }
+      .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+      .entry {
+        border: 1px solid #e2e8f0; border-radius: 11px; padding: 10px 12px; margin-top: 10px;
+        background: #f8fafc; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;
+      }
+      .entry-main { flex: 1; min-width: 0; }
+      .entry-date { font-weight: 700; font-size: 0.95rem; }
+      .entry-meta { font-size: 0.8rem; color: #475569; margin-top: 2px; }
+      .entry-reason { font-size: 0.8rem; color: #334155; margin-top: 4px; font-style: italic; }
+      .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+      .badge.s1 { background: #dcfce7; color: #15803d; }
+      .badge.s2 { background: #fef3c7; color: #b45309; }
+      .badge.s3 { background: #fee2e2; color: #b91c1c; }
+      .del { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; padding: 4px; }
+      .del:hover { color: #ef4444; }
+      .risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 480px) { .risk-grid { grid-template-columns: 1fr; } }
+      .risk-card { border-radius: 12px; padding: 14px; color: #fff; }
+      .risk-low { background: linear-gradient(135deg, #16a34a, #22c55e); }
+      .risk-med { background: linear-gradient(135deg, #d97706, #f59e0b); }
+      .risk-high { background: linear-gradient(135deg, #b91c1c, #ef4444); }
+      .risk-day { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.9; }
+      .risk-pct { font-size: 2rem; font-weight: 800; margin: 4px 0; }
+      .risk-label { font-size: 0.9rem; font-weight: 700; }
+      .risk-detail { font-size: 0.78rem; opacity: 0.9; margin-top: 6px; }
+      .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 4px; }
+      .stat { background: #f1f5f9; border-radius: 10px; padding: 10px; text-align: center; }
+      .stat-num { font-size: 1.3rem; font-weight: 800; color: #1e3a8a; }
+      .stat-lbl { font-size: 0.72rem; color: #475569; }
+      .hint { font-size: 0.75rem; color: #64748b; margin-top: 10px; }
+      .error { color: #b91c1c; font-size: 0.82rem; margin-top: 8px; }
+      .loc-row { display: flex; gap: 8px; }
+      .loc-row input { flex: 1; }
+      svg text { font-family: inherit; }
+      .empty { color: #64748b; font-size: 0.85rem; text-align: center; padding: 14px 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>📡 Kopfschmerz-Radar</h1>
+      <p>Kopfschmerzen dokumentieren · Risiko per Luftdruck-Prognose</p>
+    </header>
+    <main>
+      <!-- PROGNOSE -->
+      <section class="card" id="forecastCard">
+        <h2>🌡️ Risiko-Prognose (Luftdruck)</h2>
+        <div class="grid2">
+          <div>
+            <label for="lat">Breitengrad</label>
+            <div class="loc-row">
+              <input id="lat" type="number" step="0.001" value="54.088" />
+              <button class="ghost" id="gpsBtn" title="Standort ermitteln">📍 GPS</button>
+            </div>
+          </div>
+          <div>
+            <label for="lon">Längengrad</label>
+            <input id="lon" type="number" step="0.001" value="12.088" />
+          </div>
+        </div>
+        <button class="primary" id="updateBtn" style="margin-top:12px">Prognose aktualisieren</button>
+        <div id="riskArea"><p class="empty">Noch keine Prognose geladen – tippe auf „Prognose aktualisieren“.</p></div>
+        <div id="chartArea" style="margin-top:10px"></div>
+        <p class="hint">
+          Das Risiko-Modell basiert auf deinem Kopfschmerz-Protokoll 2026 (Rostock): Tage mit
+          24-h-Druckabfall ≤ −4 hPa ⇒ ~21 % Kopfschmerzrisiko, stabil ⇒ ~15 %, Druckanstieg ⇒ ~11 %.
+          Wetterdaten: Open-Meteo (frei, ohne API-Schlüssel).
+        </p>
+      </section>
+
+      <!-- EINTRAG -->
+      <section class="card">
+        <h2>➕ Neuer Kopfschmerz-Eintrag</h2>
+        <div class="grid2">
+          <div>
+            <label for="date">Datum</label>
+            <input id="date" type="date" />
+          </div>
+          <div>
+            <label for="tablets">Tabletten</label>
+            <input id="tablets" type="number" min="0" max="20" value="1" />
+          </div>
+        </div>
+        <div class="grid2">
+          <div>
+            <label for="from">Zeitraum von</label>
+            <select id="from">
+              <option>nachts</option><option selected>morgens</option><option>vormittags</option>
+              <option>mittags</option><option selected>nachmittags</option><option>abends</option>
+            </select>
+          </div>
+          <div>
+            <label for="to">bis</label>
+            <select id="to">
+              <option>nachts</option><option>morgens</option><option>vormittags</option>
+              <option>mittags</option><option selected>nachmittags</option><option>abends</option>
+            </select>
+          </div>
+        </div>
+        <label>Stärke</label>
+        <div class="severity-row">
+          <button type="button" class="sev-btn active" data-sev="1">1 · leicht</button>
+          <button type="button" class="sev-btn" data-sev="2">2 · mittel</button>
+          <button type="button" class="sev-btn" data-sev="3">3 · stark</button>
+        </div>
+        <label for="reason">Möglicher Grund (optional)</label>
+        <input id="reason" type="text" placeholder="z. B. Stress, Schlafmangel, Erkältung, Wetterumschwung …" />
+        <button class="primary" id="saveBtn">Eintrag speichern</button>
+        <p class="hint">Beim Speichern werden automatisch Wetterdaten zum Eintrag-Datum ermittelt: Luftdruck um 12:00, Änderung der letzten 12 Stunden (00→12 Uhr) und Temperatur (Open-Meteo). Klappt auch für zurückliegende Tage – das Archiv hat ca. 5 Tage Verzögerung.</p>
+      </section>
+
+      <!-- HISTORIE -->
+      <section class="card">
+        <h2>📋 Verlauf</h2>
+        <div class="stat-row" id="stats"></div>
+        <div class="toolbar">
+          <button class="ghost" id="csvBtn">⬇️ CSV exportieren</button>
+          <button class="ghost" id="jsonBtn">⬇️ Backup (JSON)</button>
+          <button class="ghost" id="importBtn">⬆️ Backup importieren</button>
+          <input id="importFile" type="file" accept=".json" style="display:none" />
+        </div>
+        <div id="list"></div>
+      </section>
+
+      <p class="hint" style="text-align:center">
+        Alle Daten bleiben lokal in deinem Browser (localStorage). Für GitHub Pages: als
+        <code>index.html</code> ins Repository legen und Pages aktivieren.
+      </p>
+    </main>
+
+    <script>
+      /* ---------- Speicher ---------- */
+      const KEY = "migraene_radar_entries_v1";
+      const SEED = [
+        ["2026-01-05","morgens","vormittags",2,1,""],["2026-01-20","vormittags","nachmittags",2,1,""],
+        ["2026-01-24","morgens","nachmittags",1,1,""],["2026-02-04","morgens","nachmittags",2,1,""],
+        ["2026-02-08","nachmittags","abends",2,1,""],["2026-02-11","nachts","nachmittags",2,1,""],
+        ["2026-02-17","nachts","morgens",3,1,""],["2026-02-19","vormittags","nachmittags",2,1,""],
+        ["2026-03-10","vormittags","nachmittags",2,1,""],["2026-03-22","vormittags","abends",1,0,""],
+        ["2026-03-24","nachts","vormittags",3,1,""],["2026-04-02","nachts","vormittags",3,1,"Erkältung / verstopfte Nebenhöhlen"],
+        ["2026-04-07","morgens","vormittags",2,1,"Erkältung / verstopfte Nebenhöhlen"],
+        ["2026-04-10","vormittags","nachts",2,2,"Erkältung / verstopfte Nebenhöhlen"],
+        ["2026-04-11","morgens","nachmittags",1,1,"Erkältung / verstopfte Nebenhöhlen"],
+        ["2026-04-24","vormittags","nachmittags",1,1,""],["2026-05-01","morgens","nachts",3,3,""],
+        ["2026-05-20","nachts","abends",3,3,""],["2026-05-21","nachts","vormittags",1,1,""],
+        ["2026-05-22","nachts","vormittags",1,0,""],["2026-05-27","nachts","vormittags",1,1,""],
+        ["2026-05-30","morgens","nachmittags",2,1,""],["2026-06-02","vormittags","abends",2,0,""],
+        ["2026-06-07","morgens","nachmittags",2,1,""],["2026-06-08","morgens","vormittags",3,2,""],
+        ["2026-06-12","vormittags","nachmittags",2,1,""],["2026-06-25","vormittags","abends",1,1,""],
+        ["2026-06-26","morgens","nachmittags",2,2,""],["2026-07-05","nachts","vormittags",2,1,""],
+        ["2026-07-20","nachmittags","nachts",2,1,""],["2026-07-21","nachts","vormittags",2,1,""],
+        ["2026-07-22","morgens","vormittags",1,1,""],["2026-08-12","vormittags","nachmittags",3,2,""],
+        ["2026-08-19","morgens","nachts",3,2,""],["2026-08-20","nachts","morgens",1,1,""],
+        ["2026-08-22","morgens","nachmittags",2,1,""],["2026-09-25","morgens","vormittags",1,1,""],
+        ["2026-09-29","vormittags","nachts",2,2,""],["2026-09-30","nachts","nachmittags",3,2,""],
+        ["2026-10-01","nachts","nachmittags",2,1,""],["2026-10-04","morgens","vormittags",1,0,""],
+        ["2026-10-08","morgens","nachts",3,3,"Tiefdruck / Wetterumschwung"],
+        ["2026-10-14","morgens","vormittags",1,1,""],["2026-10-19","vormittags","nachts",2,3,""],
+        ["2026-10-24","morgens","nachmittags",1,1,"Tiefdruck"]
+      ].map(a => ({ date: a[0], from: a[1], to: a[2], severity: a[3], tablets: a[4], reason: a[5] }));
+
+      function load() {
+        try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw); } catch (e) {}
+        localStorage.setItem(KEY, JSON.stringify(SEED));
+        return SEED.slice();
+      }
+      function save(entries) { localStorage.setItem(KEY, JSON.stringify(entries)); }
+
+      /* ---------- Wetterdaten je Eintrag (Open-Meteo) ---------- */
+      // Ermittelt zum Eintrag-Datum: Luftdruck um 12:00, Änderung der letzten 12 Stunden
+      // (12:00 minus 00:00) und Temperatur um 12:00 (lokal).
+      // Recent: Forecast-API (past_days=1), älter: Archive-API (ca. 5 Tage Verzögerung).
+      async function fetchWeatherForDate(dateStr) {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const target = new Date(dateStr + "T00:00");
+        const diffDays = Math.round((today - target) / 86400000);
+        let url, hourIdxBase;
+        if (diffDays >= -1 && diffDays <= 1) {
+          url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat() + "&longitude=" + lon() +
+            "&hourly=surface_pressure,temperature_2m&past_days=1&forecast_days=2&timezone=auto";
+        } else {
+          url = "https://archive-api.open-meteo.com/v1/archive?latitude=" + lat() + "&longitude=" + lon() +
+            "&hourly=surface_pressure,temperature_2m&start_date=" + dateStr + "&end_date=" + dateStr + "&timezone=auto";
+        }
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const j = await res.json();
+        const times = j.hourly.time, pres = j.hourly.surface_pressure, temp = j.hourly.temperature_2m;
+        const i0 = times.findIndex(t => t.slice(0, 10) === dateStr && t.endsWith("T00:00"));
+        const i12 = times.findIndex(t => t.slice(0, 10) === dateStr && t.endsWith("T12:00"));
+        if (i12 < 0 || pres[i12] == null) return { note: "keine Daten" };
+        const p12 = pres[i12];
+        const p0 = i0 >= 0 ? pres[i0] : null;
+        return {
+          pressure: Math.round(p12),
+          delta12: p0 != null ? Math.round((p12 - p0) * 10) / 10 : null,
+          temp: temp[i12] != null ? Math.round(temp[i12]) : null
+        };
+      }
+      function lat() { return parseFloat(document.getElementById("lat").value); }
+      function lon() { return parseFloat(document.getElementById("lon").value); }
+
+      /* ---------- Formular ---------- */
+      let entries = load();
+      let selectedSev = 1;
+      document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+      document.querySelectorAll(".sev-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".sev-btn").forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          selectedSev = parseInt(btn.dataset.sev, 10);
+        });
+      });
+
+      document.getElementById("saveBtn").addEventListener("click", async () => {
+        const date = document.getElementById("date").value;
+        if (!date) { alert("Bitte ein Datum wählen."); return; }
+        const btn = document.getElementById("saveBtn");
+        btn.disabled = true; btn.textContent = "Wetterdaten werden ermittelt …";
+        let weather = null;
+        try { weather = await fetchWeatherForDate(date); }
+        catch (e) { weather = { note: "nicht verfügbar" }; }
+        entries.push({
+          date,
+          from: document.getElementById("from").value,
+          to: document.getElementById("to").value,
+          severity: selectedSev,
+          tablets: parseInt(document.getElementById("tablets").value || "0", 10),
+          reason: document.getElementById("reason").value.trim(),
+          weather
+        });
+        entries.sort((a, b) => a.date.localeCompare(b.date));
+        save(entries);
+        document.getElementById("reason").value = "";
+        btn.disabled = false; btn.textContent = "Eintrag speichern";
+        render();
+      });
+
+      /* ---------- Liste & Statistik ---------- */
+      const fmt = d => new Date(d + "T12:00").toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+      function wInfo(e) {
+        if (!e.weather) return "🜁 –";
+        if (e.weather.pressure != null) {
+          const d = e.weather.delta12 != null
+            ? (e.weather.delta12 >= 0 ? "+" : "") + e.weather.delta12 + " hPa" : "–";
+          return "🜁 " + e.weather.pressure + " hPa · Δ12h " + d +
+            (e.weather.temp != null ? " · " + e.weather.temp + " °C" : "");
+        }
+        return "🜁 " + (e.weather.note || "–");
+      }
+      function render() {
+        const list = document.getElementById("list");
+        if (!entries.length) { list.innerHTML = '<p class="empty">Noch keine Einträge.</p>'; }
+        else {
+          list.innerHTML = entries.slice().reverse().map((e, i) => `
+            <div class="entry">
+              <div class="entry-main">
+                <div class="entry-date">${fmt(e.date)} <span class="badge s${e.severity}">${e.severity}</span></div>
+                <div class="entry-meta">${e.from} – ${e.to} · ${e.tablets} Tablette${e.tablets === 1 ? "" : "n"} · ${wInfo(e)}</div>
+                ${e.reason ? `<div class="entry-reason">„${e.reason}"</div>` : ""}
+              </div>
+              <button class="del" data-i="${entries.length - 1 - i}" title="Löschen">✕</button>
+            </div>`).join("");
+          list.querySelectorAll(".del").forEach(b => b.addEventListener("click", () => {
+            entries.splice(parseInt(b.dataset.i, 10), 1); save(entries); render();
+          }));
+        }
+        const n = entries.length;
+        const avgSev = n ? (entries.reduce((s, e) => s + e.severity, 0) / n).toFixed(1) : "–";
+        const avgTabs = n ? (entries.reduce((s, e) => s + e.tablets, 0) / n).toFixed(1) : "–";
+        const strong = n ? entries.filter(e => e.severity === 3).length : 0;
+        document.getElementById("stats").innerHTML = `
+          <div class="stat"><div class="stat-num">${n}</div><div class="stat-lbl">Einträge</div></div>
+          <div class="stat"><div class="stat-num">${avgSev}</div><div class="stat-lbl">Ø Stärke</div></div>
+          <div class="stat"><div class="stat-num">${strong}</div><div class="stat-lbl">Stark (3)</div></div>`;
+      }
+      render();
+
+      /* ---------- Export / Import ---------- */
+      function download(name, content, type) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([content], { type }));
+        a.download = name; a.click(); URL.revokeObjectURL(a.href);
+      }
+      document.getElementById("csvBtn").addEventListener("click", () => {
+        const rows = [["Datum", "Von", "Bis", "Staerke", "Tabletten", "Luftdruck_hPa_12h", "DruckDelta_12h_hPa", "Temp_C_12h", "Grund"]]
+          .concat(entries.map(e => [e.date, e.from, e.to, e.severity, e.tablets,
+            e.weather ? e.weather.pressure ?? "" : "",
+            e.weather && e.weather.delta12 != null ? e.weather.delta12 : "",
+            e.weather && e.weather.temp != null ? e.weather.temp : "",
+            e.reason]));
+        download("kopfschmerz-radar.csv", rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(";")).join("\n"), "text/csv");
+      });
+      document.getElementById("jsonBtn").addEventListener("click", () =>
+        download("kopfschmerz-radar-backup.json", JSON.stringify(entries, null, 2), "application/json"));
+      document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
+      document.getElementById("importFile").addEventListener("change", ev => {
+        const f = ev.target.files[0]; if (!f) return;
+        const r = new FileReader();
+        r.onload = () => {
+          try {
+            const data = JSON.parse(r.result);
+            if (!Array.isArray(data) || !data.every(e => e.date && e.severity)) throw new Error();
+            entries = data; save(entries); render();
+          } catch (e) { alert("Ungültige Backup-Datei."); }
+        };
+        r.readAsText(f); ev.target.value = "";
+      });
+
+      /* ---------- GPS ---------- */
+      document.getElementById("gpsBtn").addEventListener("click", () => {
+        if (!navigator.geolocation) { alert("GPS nicht verfügbar."); return; }
+        navigator.geolocation.getCurrentPosition(pos => {
+          document.getElementById("lat").value = pos.coords.latitude.toFixed(3);
+          document.getElementById("lon").value = pos.coords.longitude.toFixed(3);
+          updateForecast();
+        }, () => alert("Standort konnte nicht ermittelt werden."));
+      });
+
+      /* ---------- Prognose (Open-Meteo) ---------- */
+      // Risiko-Modell, kalibriert auf das Protokoll 2026 (Basis 15,4 %, ~1,1 %-Punkte pro hPa):
+      // Abfall -4 hPa ≈ 20 %, stabil ≈ 15 %, Anstieg +4 hPa ≈ 11 %.
+      function riskFromDelta(delta24, maxDrop6h) {
+        let risk = 15.4 - 1.1 * delta24;
+        if (maxDrop6h <= -5) risk += 3;   // starker kurzfristiger Abfall
+        return Math.max(5, Math.min(30, risk));
+      }
+      function riskClass(pct) { return pct < 12 ? "risk-low" : pct <= 18 ? "risk-med" : "risk-high"; }
+      function riskLabel(pct) { return pct < 12 ? "niedrig" : pct <= 18 ? "mäßig" : "erhöht"; }
+
+      async function updateForecast() {
+        const lat = parseFloat(document.getElementById("lat").value);
+        const lon = parseFloat(document.getElementById("lon").value);
+        const area = document.getElementById("riskArea");
+        area.innerHTML = '<p class="empty">Lade Wetterdaten …</p>';
+        try {
+          const url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
+            "&longitude=" + lon + "&hourly=surface_pressure&past_days=1&forecast_days=2&timezone=auto";
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const j = await res.json();
+          const times = j.hourly.time, pres = j.hourly.surface_pressure;
+
+          // Tagesmittel je lokalem Datum
+          const dayMean = {}, dayVals = {};
+          times.forEach((t, i) => {
+            const d = t.slice(0, 10);
+            (dayVals[d] = dayVals[d] || []).push(pres[i]);
+          });
+          for (const d in dayVals) dayMean[d] = dayVals[d].reduce((a, b) => a + b, 0) / dayVals[d].length;
+          const days = Object.keys(dayMean).sort();
+
+          // größter 6-h-Abfall je Tag (tagesübergreifend)
+          function maxDrop6h(day) {
+            let worst = 0;
+            for (let i = 6; i < times.length; i++) {
+              if (times[i].slice(0, 10) !== day) continue;
+              const diff = pres[i] - pres[i - 6];
+              if (diff < worst) worst = diff;
+            }
+            return worst;
+          }
+
+          const cards = [];
+          for (let k = 1; k < days.length; k++) {           // days[0] = gestern (Referenz)
+            const d = days[k];
+            const delta = dayMean[d] - dayMean[days[k - 1]];
+            const drop = maxDrop6h(d);
+            const pct = Math.round(riskFromDelta(delta, drop));
+            const lbl = new Date(d + "T12:00").toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit" });
+            cards.push({ d, lbl, pct, delta, drop });
+          }
+
+          area.innerHTML = '<div class="risk-grid">' + cards.map(c => `
+            <div class="risk-card ${riskClass(c.pct)}">
+              <div class="risk-day">${c.lbl}</div>
+              <div class="risk-pct">${c.pct} %</div>
+              <div class="risk-label">Kopfschmerz-Risiko: ${riskLabel(c.pct)}</div>
+              <div class="risk-detail">Ø Luftdruck ${dayMean[c.d].toFixed(0)} hPa ·
+                24-h-Änderung ${c.delta >= 0 ? "+" : ""}${c.delta.toFixed(1)} hPa ·
+                max. 6-h-Abfall ${c.drop.toFixed(1)} hPa</div>
+            </div>`).join("") + "</div>";
+
+          drawChart(times, pres, days);
+        } catch (err) {
+          area.innerHTML = '<p class="error">Wetterdaten konnten nicht geladen werden (' + err.message +
+            '). Internetverbindung prüfen – in der Canvas-Vorschau ist der Netzwerkzugriff ggf. blockiert; auf GitHub Pages funktioniert er.</p>';
+        }
+      }
+
+      function drawChart(times, pres, days) {
+        const w = 660, h = 150, pad = 34;
+        const n = pres.length;
+        const min = Math.min(...pres), max = Math.max(...pres);
+        const x = i => pad + (w - 2 * pad) * i / (n - 1);
+        const y = v => pad + (h - 2 * pad) * (1 - (v - min) / (max - min || 1));
+        const pts = pres.map((v, i) => x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" ");
+        const nowIdx = times.findIndex(t => t >= new Date().toISOString().slice(0, 13));
+        const grid = days.map((d, i) => {
+          const idx = times.findIndex(t => t.startsWith(d));
+          const lbl = i === 0 ? "gestern" : i === 1 ? "heute" : "morgen";
+          return `<line x1="${x(idx)}" y1="${pad}" x2="${x(idx)}" y2="${h - pad}" stroke="#e2e8f0"/>
+                  <text x="${x(idx) + 3}" y="${pad - 8}" font-size="10" fill="#94a3b8">${lbl}</text>`;
+        }).join("");
+        document.getElementById("chartArea").innerHTML =
+          '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto" role="img" aria-label="Luftdruckverlauf">' +
+          grid +
+          (nowIdx > 0 ? `<line x1="${x(nowIdx)}" y1="${pad}" x2="${x(nowIdx)}" y2="${h - pad}" stroke="#2563eb" stroke-dasharray="4 3"/>` : "") +
+          '<polyline points="' + pts + '" fill="none" stroke="#3b82f6" stroke-width="2"/>' +
+          '<text x="' + pad + '" y="' + (y(max) + 3) + '" font-size="10" fill="#94a3b8">' + max.toFixed(0) + ' hPa</text>' +
+          '<text x="' + pad + '" y="' + (y(min) - 4) + '" font-size="10" fill="#94a3b8">' + min.toFixed(0) + ' hPa</text>' +
+          '</svg><p class="hint" style="margin-top:4px">Luftdruck: gestern · heute · morgen (blau gestrichelt: jetzt)</p>';
+      }
+
+      document.getElementById("updateBtn").addEventListener("click", updateForecast);
+    </script>
+  </body>
+</html>
