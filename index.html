@@ -87,19 +87,6 @@
       .loc-row input { flex: 1; }
       svg text { font-family: inherit; }
       .empty { color: #64748b; font-size: 0.85rem; text-align: center; padding: 14px 0; }
-      /* ---------- Druck / PDF ---------- */
-      #printArea { display: none; }
-      @media print {
-        header, main > .card, body > p.hint { display: none !important; }
-        body { background: #fff; padding: 0; }
-        #printArea { display: block; font-size: 11pt; color: #111; }
-        #printArea table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-        #printArea th, #printArea td { border: 1px solid #999; padding: 4px 7px; text-align: left; font-size: 9pt; }
-        #printArea th { background: #eef2f7; }
-        #printArea h1 { font-size: 18pt; margin: 0 0 2px; }
-        #printArea .sub { color: #555; font-size: 9pt; margin: 0 0 12px; }
-        #printArea .stats { font-size: 10pt; margin: 0 0 4px; }
-      }
     </style>
   </head>
   <body>
@@ -181,7 +168,7 @@
         <div class="stat-row" id="stats"></div>
         <div class="toolbar">
           <button class="ghost" id="csvBtn">⬇️ CSV exportieren</button>
-          <button class="ghost" id="pdfBtn">🖨️ PDF exportieren</button>
+          <button class="ghost" id="pdfBtn">📄 PDF speichern</button>
           <button class="ghost" id="jsonBtn">⬇️ Backup (JSON)</button>
           <button class="ghost" id="importBtn">⬆️ Backup importieren</button>
           <input id="importFile" type="file" accept=".json" style="display:none" />
@@ -194,8 +181,6 @@
         <code>index.html</code> ins Repository legen und Pages aktivieren.
       </p>
     </main>
-
-    <div id="printArea"></div>
 
     <script>
       /* ---------- Speicher ---------- */
@@ -376,29 +361,133 @@
         r.readAsText(f); ev.target.value = "";
       });
 
-      /* ---------- PDF-Export (Druck) ---------- */
-      document.getElementById("pdfBtn").addEventListener("click", () => {
+      /* ---------- PDF-Export: echte PDF ohne Drucker (iOS-Standalone-tauglich) ---------- */
+      // WinAnsi-kompatible Umsetzung (Helvetica) und PDF-Escaping
+      function latin(s) {
+        s = String(s || "");
+        let out = "";
+        for (const ch of s) {
+          let c = ch.codePointAt(0);
+          if (c > 255) {
+            if (ch === "\u2013" || ch === "\u2014") c = 45;        // – —  -> -
+            else if (ch === "\u201E" || ch === "\u201C" || ch === "\u201D") c = 34; // „ “ ” -> "
+            else if (ch === "\u2026") c = 46;                       // … -> .
+            else c = 63;                                           // sonst ?
+          }
+          out += String.fromCharCode(c);
+        }
+        return out;
+      }
+      const pdfEsc = s => latin(s).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+      const cut = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, Math.max(0, n - 3)) + "..." : s; };
+
+      function buildPdf() {
         const n = entries.length;
-        if (!n) { alert("Keine Einträge zum Exportieren."); return; }
         const avgSev = (entries.reduce((s, e) => s + e.severity, 0) / n).toFixed(1);
         const avgTabs = (entries.reduce((s, e) => s + e.tablets, 0) / n).toFixed(1);
-        const esc = s => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
-        const rows = entries.slice().reverse().map(e => {
+        const created = new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+        // Spalten: Datum | Zeitraum | St. | Tab. | Druck/Diff. 12h | Grund
+        const X = [40, 130, 215, 250, 292, 405];
+        const HEAD = ["Datum", "Zeitraum", "St.", "Tab.", "Druck/Diff. 12h", "Grund"];
+        const PW = 595, PH = 842, MARGIN = 40, LH = 16;
+
+        const pages = [];            // je Seite: Array von Content-Stream-Befehlen
+        const txt = (x, y, t, bold, size) =>
+          `BT /F${bold ? 2 : 1} ${size || 9} Tf 1 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)} Tm (${pdfEsc(t)}) Tj ET\n`;
+
+        function headerOps(y) {
+          let s = "";
+          HEAD.forEach((h, i) => { s += txt(X[i], y, h, true); });
+          s += `0.8 w 40 ${(y - 4).toFixed(1)} m 555 ${(y - 4).toFixed(1)} l S\n`;
+          return s;
+        }
+
+        let cur = null, y = 0;
+        function newPage() {
+          cur = [];
+          pages.push(cur);
+          y = 792;
+          if (pages.length === 1) {
+            cur.push(txt(40, 812, "Kopfschmerz-Radar \u2013 Verlauf", true, 15));
+            cur.push(txt(40, 794, "Erstellt am " + created + " \u00b7 " + n + " Eintr\u00e4ge \u00b7 \u00d8 St\u00e4rke " + avgSev +
+              " \u00b7 \u00d8 Tabletten " + avgTabs, false, 9));
+            cur.push(txt(40, 780, "Wetter: Luftdruck 12 Uhr / \u00c4nderung letzte 12 h in hPa (Open-Meteo)", false, 8));
+            y = 752;
+          }
+          cur.push(headerOps(y));
+          y -= LH + 6;
+        }
+        newPage();
+
+        entries.slice().reverse().forEach((e, idx) => {
+          if (y < 70) newPage();
           const w = e.weather && e.weather.pressure != null
             ? e.weather.pressure + " hPa" +
               (e.weather.delta12 != null ? " / " + (e.weather.delta12 >= 0 ? "+" : "") + e.weather.delta12 : "")
-            : "–";
-          return `<tr><td>${esc(fmt(e.date))}</td><td>${e.from} – ${e.to}</td><td>${e.severity}</td>` +
-                 `<td>${e.tablets}</td><td>${w}</td><td>${esc(e.reason)}</td></tr>`;
-        }).join("");
-        document.getElementById("printArea").innerHTML =
-          `<h1>Kopfschmerz-Radar – Verlauf</h1>` +
-          `<p class="sub">Erstellt am ${new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} · ${n} Einträge</p>` +
-          `<p class="stats">Einträge: <b>${n}</b> · Ø Stärke: <b>${avgSev}</b> · Ø Tabletten: <b>${avgTabs}</b> · Zeitraum: <b>${fmt(entries[0].date)} – ${fmt(entries[entries.length - 1].date)}</b></p>` +
-          `<p class="sub">Wetter: Luftdruck 12 Uhr / Änderung letzte 12 h (Open-Meteo)</p>` +
-          `<table><thead><tr><th>Datum</th><th>Zeitraum</th><th>Stärke</th><th>Tabletten</th><th>Luftdruck / Δ12h</th><th>Grund</th></tr></thead>` +
-          `<tbody>${rows}</tbody></table>`;
-        window.print();
+            : "-";
+          const row = [
+            cut(fmt(e.date), 18), cut(e.from + " - " + e.to, 16), String(e.severity), String(e.tablets),
+            cut(w, 22), cut(e.reason, 34)
+          ];
+          if (idx % 2 === 1) cur.push(`q 0.955 0.965 0.980 rg 40 ${(y - 4).toFixed(1)} 515 ${(LH + 2)} re f Q\n`);
+          row.forEach((cell, i) => { cur.push(txt(X[i], y, cell)); });
+          y -= LH;
+        });
+        pages.forEach((p, i) => {
+          p.push(txt(288, 36, "Seite " + (i + 1) + " / " + pages.length, false, 8));
+        });
+
+        // PDF-Objekte zusammensetzen
+        const objs = [];
+        const addObj = body => objs.push(body);
+        addObj("<< /Type /Catalog /Pages 2 0 R >>");
+        const kids = pages.map((_, i) => (5 + 2 * i) + " 0 R").join(" ");
+        addObj("<< /Type /Pages /Kids [" + kids + "] /Count " + pages.length + " >>");
+        addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+        addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+        pages.forEach((p, i) => {
+          const stream = p.join("");
+          addObj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + PW + " " + PH + "] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents " + (6 + 2 * i) + " 0 R >>");
+          addObj("<< /Length " + stream.length + " >>\nstream\n" + stream + "endstream");
+        });
+
+        let pdf = "%PDF-1.4\n";
+        const offsets = [];
+        objs.forEach((body, i) => {
+          offsets.push(pdf.length);
+          pdf += (i + 1) + " 0 obj\n" + body + "\nendobj\n";
+        });
+        const xrefPos = pdf.length;
+        pdf += "xref\n0 " + (objs.length + 1) + "\n0000000000 65535 f \n";
+        offsets.forEach(o => { pdf += String(o).padStart(10, "0") + " 00000 n \n"; });
+        pdf += "trailer\n<< /Size " + (objs.length + 1) + " /Root 1 0 R >>\nstartxref\n" + xrefPos + "\n%%EOF";
+
+        const bytes = new Uint8Array(pdf.length);
+        for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
+        return new Blob([bytes], { type: "application/pdf" });
+      }
+
+      document.getElementById("pdfBtn").addEventListener("click", async () => {
+        if (!entries.length) { alert("Keine Eintr\u00e4ge zum Exportieren."); return; }
+        const blob = buildPdf();
+        const fileName = "kopfschmerz-radar-" + new Date().toISOString().slice(0, 10) + ".pdf";
+        // iPhone (Home-Screen-App): Share-Sheet -> "In Dateien sichern"
+        try {
+          const file = new File([blob], fileName, { type: "application/pdf" });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: "Kopfschmerz-Radar" });
+            return;
+          }
+        } catch (err) {
+          if (err && err.name === "AbortError") return; // Teilen abgebrochen
+        }
+        // Fallback: klassischer Download
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
       });
 
       /* ---------- GPS ---------- */
