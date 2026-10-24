@@ -67,6 +67,10 @@
       .badge.s3 { background: #fee2e2; color: #b91c1c; }
       .del { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1rem; padding: 4px; }
       .del:hover { color: #ef4444; }
+      .del.edit-btn { color: #2563eb; padding: 4px 6px; }
+      .del.edit-btn:hover { color: #1d4ed8; }
+      .entry.edit-active { border: 2px solid #2563eb; background: #eff6ff; }
+      button.primary.editMode { background: #16a34a; }
       .risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       @media (max-width: 480px) { .risk-grid { grid-template-columns: 1fr; } }
       .risk-card { border-radius: 12px; padding: 14px; color: #fff; }
@@ -159,6 +163,7 @@
         <label for="reason">Möglicher Grund (optional)</label>
         <input id="reason" type="text" placeholder="z. B. Stress, Schlafmangel, Erkältung, Wetterumschwung …" />
         <button class="primary" id="saveBtn">Eintrag speichern</button>
+        <button class="ghost" id="cancelEditBtn" style="display:none; margin-top:8px; width:100%">Bearbeiten abbrechen</button>
         <p class="hint">Beim Speichern werden automatisch Wetterdaten zum Eintrag-Datum ermittelt: Luftdruck um 12:00, Änderung der letzten 12 Stunden (00→12 Uhr) und Temperatur (Open-Meteo). Klappt auch für zurückliegende Tage – das Archiv hat ca. 5 Tage Verzögerung.</p>
       </section>
 
@@ -269,12 +274,17 @@
       document.getElementById("saveBtn").addEventListener("click", async () => {
         const date = document.getElementById("date").value;
         if (!date) { alert("Bitte ein Datum wählen."); return; }
+        const editing = editIndex !== null;
+        // Wetter nur neu ermitteln, wenn Datum geändert wurde (oder neuer Eintrag)
+        const needWeather = !editing || !entries[editIndex] || entries[editIndex].date !== date;
         const btn = document.getElementById("saveBtn");
-        btn.disabled = true; btn.textContent = "Wetterdaten werden ermittelt …";
+        btn.disabled = true; btn.textContent = needWeather ? "Wetterdaten werden ermittelt …" : "Speichern …";
         let weather = null;
-        try { weather = await fetchWeatherForDate(date); }
-        catch (e) { weather = { note: "nicht verfügbar" }; }
-        entries.push({
+        if (needWeather) {
+          try { weather = await fetchWeatherForDate(date); }
+          catch (e) { weather = { note: "nicht verfügbar" }; }
+        } else { weather = entries[editIndex].weather; }
+        const data = {
           date,
           from: document.getElementById("from").value,
           to: document.getElementById("to").value,
@@ -282,10 +292,15 @@
           tablets: parseInt(document.getElementById("tablets").value || "0", 10),
           reason: document.getElementById("reason").value.trim(),
           weather
-        });
+        };
+        if (editing) { entries[editIndex] = data; } else { entries.push(data); }
         entries.sort((a, b) => a.date.localeCompare(b.date));
         save(entries);
-        document.getElementById("reason").value = "";
+        if (editIndex !== null) {
+          setEditMode(false, null);
+        } else {
+          document.getElementById("reason").value = "";
+        }
         btn.disabled = false; btn.textContent = "Eintrag speichern";
         render();
       });
@@ -302,21 +317,59 @@
         }
         return "🜁 " + (e.weather.note || "–");
       }
+      let editIndex = null; // Index des gerade bearbeiteten Eintrags (null = neu)
+
+      function fillForm(e) {
+        document.getElementById("date").value = e.date;
+        document.getElementById("from").value = e.from;
+        document.getElementById("to").value = e.to;
+        document.getElementById("tablets").value = e.tablets;
+        document.getElementById("reason").value = e.reason || "";
+        selectedSev = e.severity;
+        document.querySelectorAll(".sev-btn").forEach(b =>
+          b.classList.toggle("active", parseInt(b.dataset.sev, 10) === e.severity));
+      }
+      function setEditMode(on, idx) {
+        editIndex = on ? idx : null;
+        const save = document.getElementById("saveBtn");
+        const cancel = document.getElementById("cancelEditBtn");
+        save.textContent = on ? "Änderungen speichern" : "Eintrag speichern";
+        cancel.style.display = on ? "inline-block" : "none";
+        if (on) {
+          document.getElementById("date").scrollIntoView({ behavior: "smooth", block: "center" });
+          save.classList.add("editMode");
+        } else { save.classList.remove("editMode"); }
+      }
+      document.getElementById("cancelEditBtn").addEventListener("click", () => {
+        setEditMode(false, null);
+        document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+        document.getElementById("reason").value = "";
+      });
+
       function render() {
         const list = document.getElementById("list");
         if (!entries.length) { list.innerHTML = '<p class="empty">Noch keine Einträge.</p>'; }
         else {
           list.innerHTML = entries.slice().reverse().map((e, i) => `
-            <div class="entry">
+            <div class="entry${editIndex === entries.length - 1 - i ? ' edit-active' : ''}">
               <div class="entry-main">
                 <div class="entry-date">${fmt(e.date)} <span class="badge s${e.severity}">${e.severity}</span></div>
                 <div class="entry-meta">${e.from} – ${e.to} · ${e.tablets} Tablette${e.tablets === 1 ? "" : "n"} · ${wInfo(e)}</div>
                 ${e.reason ? `<div class="entry-reason">„${e.reason}"</div>` : ""}
               </div>
+              <button class="del edit-btn" data-i="${entries.length - 1 - i}" title="Bearbeiten">✎</button>
               <button class="del" data-i="${entries.length - 1 - i}" title="Löschen">✕</button>
             </div>`).join("");
-          list.querySelectorAll(".del").forEach(b => b.addEventListener("click", () => {
-            entries.splice(parseInt(b.dataset.i, 10), 1); save(entries); render();
+          list.querySelectorAll(".del.edit-btn").forEach(b => b.addEventListener("click", () => {
+            const idx = parseInt(b.dataset.i, 10);
+            fillForm(entries[idx]);
+            setEditMode(true, idx);
+            render();
+          }));
+          list.querySelectorAll(".del:not(.edit-btn)").forEach(b => b.addEventListener("click", () => {
+            entries.splice(parseInt(b.dataset.i, 10), 1); save(entries);
+            if (editIndex !== null) setEditMode(false, null);
+            render();
           }));
         }
         const n = entries.length;
@@ -387,9 +440,9 @@
         const avgTabs = (entries.reduce((s, e) => s + e.tablets, 0) / n).toFixed(1);
         const created = new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 
-        // Spalten: Datum | Zeitraum | St. | Tab. | Druck/Diff. 12h | Grund
-        const X = [40, 130, 215, 250, 292, 405];
-        const HEAD = ["Datum", "Zeitraum", "St.", "Tab.", "Druck/Diff. 12h", "Grund"];
+        // Spalten: Datum | Zeitraum | St. | Tab. | Bemerkungen (inkl. Wetter)
+        const X = [40, 128, 250, 284, 330];
+        const HEAD = ["Datum", "Zeitraum", "St.", "Tab.", "Bemerkungen"];
         const PW = 595, PH = 842, MARGIN = 40, LH = 16;
 
         const pages = [];            // je Seite: Array von Content-Stream-Befehlen
@@ -412,7 +465,7 @@
             cur.push(txt(40, 812, "Kopfschmerz-Radar \u2013 Verlauf", true, 15));
             cur.push(txt(40, 794, "Erstellt am " + created + " \u00b7 " + n + " Eintr\u00e4ge \u00b7 \u00d8 St\u00e4rke " + avgSev +
               " \u00b7 \u00d8 Tabletten " + avgTabs, false, 9));
-            cur.push(txt(40, 780, "Wetter: Luftdruck 12 Uhr / \u00c4nderung letzte 12 h in hPa (Open-Meteo)", false, 8));
+            cur.push(txt(40, 780, "Bemerkungen: Luftdruck 12 Uhr mit \u00c4nderung der letzten 12 h (Open-Meteo) - eigener Grund", false, 8));
             y = 752;
           }
           cur.push(headerOps(y));
@@ -422,13 +475,15 @@
 
         entries.slice().reverse().forEach((e, idx) => {
           if (y < 70) newPage();
-          const w = e.weather && e.weather.pressure != null
-            ? e.weather.pressure + " hPa" +
-              (e.weather.delta12 != null ? " / " + (e.weather.delta12 >= 0 ? "+" : "") + e.weather.delta12 : "")
-            : "-";
+          const wParts = [];
+          if (e.weather && e.weather.pressure != null) {
+            wParts.push(e.weather.pressure + " hPa" +
+              (e.weather.delta12 != null ? " (" + (e.weather.delta12 >= 0 ? "+" : "") + e.weather.delta12 + " hPa)" : ""));
+          }
+          if (e.reason) wParts.push(e.reason);
+          const note = cut(wParts.join(" - "), 46);
           const row = [
-            cut(fmt(e.date), 18), cut(e.from + " - " + e.to, 16), String(e.severity), String(e.tablets),
-            cut(w, 22), cut(e.reason, 34)
+            cut(fmt(e.date), 18), cut(e.from + " - " + e.to, 25), String(e.severity), String(e.tablets), note
           ];
           if (idx % 2 === 1) cur.push(`q 0.955 0.965 0.980 rg 40 ${(y - 4).toFixed(1)} 515 ${(LH + 2)} re f Q\n`);
           row.forEach((cell, i) => { cur.push(txt(X[i], y, cell)); });
