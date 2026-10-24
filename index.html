@@ -191,37 +191,68 @@
       /* ---------- Speicher ---------- */
       const KEY = "migraene_radar_entries_v1";
       const SEED = [
-        ["2026-01-05","morgens","vormittags",2,1,""],["2026-01-20","vormittags","nachmittags",2,1,""],
-        ["2026-01-24","morgens","nachmittags",1,1,""],["2026-02-04","morgens","nachmittags",2,1,""],
-        ["2026-02-08","nachmittags","abends",2,1,""],["2026-02-11","nachts","nachmittags",2,1,""],
-        ["2026-02-17","nachts","morgens",3,1,""],["2026-02-19","vormittags","nachmittags",2,1,""],
-        ["2026-03-10","vormittags","nachmittags",2,1,""],["2026-03-22","vormittags","abends",1,0,""],
-        ["2026-03-24","nachts","vormittags",3,1,""],["2026-04-02","nachts","vormittags",3,1,"Erkältung / verstopfte Nebenhöhlen"],
-        ["2026-04-07","morgens","vormittags",2,1,"Erkältung / verstopfte Nebenhöhlen"],
-        ["2026-04-10","vormittags","nachts",2,2,"Erkältung / verstopfte Nebenhöhlen"],
-        ["2026-04-11","morgens","nachmittags",1,1,"Erkältung / verstopfte Nebenhöhlen"],
-        ["2026-04-24","vormittags","nachmittags",1,1,""],["2026-05-01","morgens","nachts",3,3,""],
-        ["2026-05-20","nachts","abends",3,3,""],["2026-05-21","nachts","vormittags",1,1,""],
-        ["2026-05-22","nachts","vormittags",1,0,""],["2026-05-27","nachts","vormittags",1,1,""],
-        ["2026-05-30","morgens","nachmittags",2,1,""],["2026-06-02","vormittags","abends",2,0,""],
-        ["2026-06-07","morgens","nachmittags",2,1,""],["2026-06-08","morgens","vormittags",3,2,""],
-        ["2026-06-12","vormittags","nachmittags",2,1,""],["2026-06-25","vormittags","abends",1,1,""],
-        ["2026-06-26","morgens","nachmittags",2,2,""],["2026-07-05","nachts","vormittags",2,1,""],
-        ["2026-07-20","nachmittags","nachts",2,1,""],["2026-07-21","nachts","vormittags",2,1,""],
-        ["2026-07-22","morgens","vormittags",1,1,""],["2026-08-12","vormittags","nachmittags",3,2,""],
-        ["2026-08-19","morgens","nachts",3,2,""],["2026-08-20","nachts","morgens",1,1,""],
-        ["2026-08-22","morgens","nachmittags",2,1,""],["2026-09-25","morgens","vormittags",1,1,""],
-        ["2026-09-29","vormittags","nachts",2,2,""],["2026-09-30","nachts","nachmittags",3,2,""],
-        ["2026-10-01","nachts","nachmittags",2,1,""],["2026-10-04","morgens","vormittags",1,0,""],
-        ["2026-10-08","morgens","nachts",3,3,"Tiefdruck / Wetterumschwung"],
-        ["2026-10-14","morgens","vormittags",1,1,""],["2026-10-19","vormittags","nachts",2,3,""],
-        ["2026-10-24","morgens","nachmittags",1,1,"Tiefdruck"]
-      ].map(a => ({ date: a[0], from: a[1], to: a[2], severity: a[3], tablets: a[4], reason: a[5] }));
+        ["2026-01-05","morgens","vormittags",2,1,"",{p:1007,d:3.3}],["2026-01-20","vormittags","nachmittags",2,1,"",{p:1019,d:-1}],
+        ["2026-01-24","morgens","nachmittags",1,1,"",{p:1007,d:1.2}],["2026-02-04","morgens","nachmittags",2,1,"",{p:1006,d:-1.2}],
+        ["2026-02-08","nachmittags","abends",2,1,"",{p:1011,d:2.5}],["2026-02-11","nachts","nachmittags",2,1,"",{p:984,d:-4.9}],
+        ["2026-02-17","nachts","morgens",3,1,"",{p:1001,d:5.3}],["2026-02-19","vormittags","nachmittags",2,1,"",{p:1011,d:0.1}],
+        ["2026-03-10","vormittags","nachmittags",2,1,"",{p:1013,d:-1.7}],["2026-03-22","vormittags","abends",1,0,"",{p:1019,d:-0.5}],
+        ["2026-03-24","nachts","vormittags",3,1,"",{p:1011,d:-4.1}],["2026-04-02","nachts","vormittags",3,1,"Erkältung / verstopfte Nebenhöhlen",{p:1012,d:-5.2}],
+        ["2026-04-07","morgens","vormittags",2,1,"Erkältung / verstopfte Nebenhöhlen",{p:1024,d:2.4}],
+        ["2026-04-10","vormittags","nachts",2,2,"Erkältung / verstopfte Nebenhöhlen",{p:1014,d:-3.4}],
+        ["2026-04-11","morgens","nachmittags",1,1,"Erkältung / verstopfte Nebenhöhlen",{p:1016,d:0.4}],
+        ["2026-04-24","vormittags","nachmittags",1,1,"",{p:1015,d:-0.7}],["2026-05-01","morgens","nachts",3,3,"",{p:1026,d:-0.3}],
+        ["2026-05-20","nachts","abends",3,3,"",{p:1015,d:0.5}],["2026-05-21","nachts","vormittags",1,1,"",{p:1022,d:3}],
+        ["2026-05-22","nachts","vormittags",1,0,"",{p:1026,d:2.4}],["2026-05-27","nachts","vormittags",1,1,"",{p:1022,d:3.5}],
+        ["2026-05-30","morgens","nachmittags",2,1,"",{p:1015,d:0.1}],["2026-06-02","vormittags","abends",2,0,"",{p:1007,d:-4.2}],
+        ["2026-06-07","morgens","nachmittags",2,1,"",{p:1014,d:1.4}],["2026-06-08","morgens","vormittags",3,2,"",{p:1016,d:-1.3}],
+        ["2026-06-12","vormittags","nachmittags",2,1,"",{p:1012,d:-3}],["2026-06-25","vormittags","abends",1,1,"",{p:1017,d:1.8}],
+        ["2026-06-26","morgens","nachmittags",2,2,"",{p:1017,d:0.6}],["2026-07-05","nachts","vormittags",2,1,"",{p:1012,d:-1.1}],
+        ["2026-07-20","nachmittags","nachts",2,1,"",{p:1013,d:1.5}],["2026-07-21","nachts","vormittags",2,1,"",{p:1018,d:1.3}],
+        ["2026-07-22","morgens","vormittags",1,1,"",{p:1011,d:-5.4}],["2026-08-12","vormittags","nachmittags",3,2,"",{p:1026,d:2.9}],
+        ["2026-08-19","morgens","nachts",3,2,"",{p:1000,d:-2.8}],["2026-08-20","nachts","morgens",1,1,"",{p:1002,d:4}],
+        ["2026-08-22","morgens","nachmittags",2,1,"",{p:1008,d:1.8}],["2026-09-25","morgens","vormittags",1,1,"",{p:1018,d:0.5}],
+        ["2026-09-29","vormittags","nachts",2,2,"",{p:1021,d:1}],["2026-09-30","nachts","nachmittags",3,2,"",{p:1021,d:-0.3}],
+        ["2026-10-01","nachts","nachmittags",2,1,"",{p:1020,d:-0.3}],["2026-10-04","morgens","vormittags",1,0,"",{p:1025,d:-0.4}],
+        ["2026-10-08","morgens","nachts",3,3,"Tiefdruck / Wetterumschwung",{p:998,d:-5.8}],
+        ["2026-10-14","morgens","vormittags",1,1,"",{p:1021,d:7.9}],["2026-10-19","vormittags","nachts",2,3,"",{p:1031,d:0}],
+        ["2026-10-24","morgens","nachmittags",1,1,"Tiefdruck",{p:1002,d:1.7}]
+      ].map(a => ({
+        date: a[0], from: a[1], to: a[2], severity: a[3], tablets: a[4], reason: a[5],
+        weather: a[6] ? { pressure: a[6].p, delta12: a[6].d, temp: null } : null
+      }));
+
+      // Luftdruckdaten der 45 Kopfschmerztage 2026 (Open-Meteo ERA5, Rostock):
+      // [Druck 12:00 Uhr in hPa, Änderung der letzten 12 h (00→12 Uhr) in hPa]
+      const SEEDWX = {
+        "2026-01-05":[1007,3.3],"2026-01-20":[1019,-1],"2026-01-24":[1007,1.2],"2026-02-04":[1006,-1.2],
+        "2026-02-08":[1011,2.5],"2026-02-11":[984,-4.9],"2026-02-17":[1001,5.3],"2026-02-19":[1011,0.1],
+        "2026-03-10":[1013,-1.7],"2026-03-22":[1019,-0.5],"2026-03-24":[1011,-4.1],"2026-04-02":[1012,-5.2],
+        "2026-04-07":[1024,2.4],"2026-04-10":[1014,-3.4],"2026-04-11":[1016,0.4],"2026-04-24":[1015,-0.7],
+        "2026-05-01":[1026,-0.3],"2026-05-20":[1015,0.5],"2026-05-21":[1022,3],"2026-05-22":[1026,2.4],
+        "2026-05-27":[1022,3.5],"2026-05-30":[1015,0.1],"2026-06-02":[1007,-4.2],"2026-06-07":[1014,1.4],
+        "2026-06-08":[1016,-1.3],"2026-06-12":[1012,-3],"2026-06-25":[1017,1.8],"2026-06-26":[1017,0.6],
+        "2026-07-05":[1012,-1.1],"2026-07-20":[1013,1.5],"2026-07-21":[1018,1.3],"2026-07-22":[1011,-5.4],
+        "2026-08-12":[1026,2.9],"2026-08-19":[1000,-2.8],"2026-08-20":[1002,4],"2026-08-22":[1008,1.8],
+        "2026-09-25":[1018,0.5],"2026-09-29":[1021,1],"2026-09-30":[1021,-0.3],"2026-10-01":[1020,-0.3],
+        "2026-10-04":[1025,-0.4],"2026-10-08":[998,-5.8],"2026-10-14":[1021,7.9],"2026-10-19":[1031,0],
+        "2026-10-24":[1002,1.7]
+      };
 
       function load() {
-        try { const raw = localStorage.getItem(KEY); if (raw) return JSON.parse(raw); } catch (e) {}
+        try { const raw = localStorage.getItem(KEY); if (raw) return migrate(JSON.parse(raw)); } catch (e) {}
         localStorage.setItem(KEY, JSON.stringify(SEED));
         return SEED.slice();
+      }
+      // Nachpflege: 2026-Protokoll-Einträgen ggf. die Luftdruckdaten (Open-Meteo, Rostock) nachtragen
+      function migrate(list) {
+        let changed = false;
+        for (const e of list) {
+          if (e.weather && e.weather.pressure != null) continue;
+          const wx = SEEDWX[e.date];
+          if (wx) { e.weather = { pressure: wx[0], delta12: wx[1], temp: null }; changed = true; }
+        }
+        if (changed) localStorage.setItem(KEY, JSON.stringify(list));
+        return list;
       }
       function save(entries) { localStorage.setItem(KEY, JSON.stringify(entries)); }
 
