@@ -179,7 +179,7 @@
           <button class="ghost" id="pdfBtn">📄 PDF speichern</button>
           <button class="ghost" id="jsonBtn">⬇️ Backup (JSON)</button>
           <button class="ghost" id="importBtn">⬆️ Backup importieren</button>
-          <input id="importFile" type="file" accept=".json" style="display:none" />
+          <input id="importFile" type="file" accept=".json,.txt,application/json,text/plain" style="display:none" />
         </div>
         <div id="list"></div>
       </section>
@@ -382,7 +382,12 @@
         const r = new FileReader();
         r.onload = () => {
           try {
-            const data = JSON.parse(r.result);
+            let txt = String(r.result);
+            // Robust gegen Canvas-/Editor-Reste: JSON ab der ersten "["-Zeile lesen
+            const start = txt.indexOf("[");
+            const end = txt.lastIndexOf("]");
+            if (start > 0 && end > start) txt = txt.slice(start, end + 1);
+            const data = JSON.parse(txt);
             if (!Array.isArray(data) || !data.every(e => e.date && e.severity)) throw new Error();
             entries = data; save(entries); render();
           } catch (e) { alert("Ungültige Backup-Datei."); }
