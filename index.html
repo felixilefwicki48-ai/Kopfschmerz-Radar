@@ -87,6 +87,19 @@
       .loc-row input { flex: 1; }
       svg text { font-family: inherit; }
       .empty { color: #64748b; font-size: 0.85rem; text-align: center; padding: 14px 0; }
+      /* ---------- Druck / PDF ---------- */
+      #printArea { display: none; }
+      @media print {
+        header, main > .card, body > p.hint { display: none !important; }
+        body { background: #fff; padding: 0; }
+        #printArea { display: block; font-size: 11pt; color: #111; }
+        #printArea table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        #printArea th, #printArea td { border: 1px solid #999; padding: 4px 7px; text-align: left; font-size: 9pt; }
+        #printArea th { background: #eef2f7; }
+        #printArea h1 { font-size: 18pt; margin: 0 0 2px; }
+        #printArea .sub { color: #555; font-size: 9pt; margin: 0 0 12px; }
+        #printArea .stats { font-size: 10pt; margin: 0 0 4px; }
+      }
     </style>
   </head>
   <body>
@@ -168,6 +181,7 @@
         <div class="stat-row" id="stats"></div>
         <div class="toolbar">
           <button class="ghost" id="csvBtn">⬇️ CSV exportieren</button>
+          <button class="ghost" id="pdfBtn">🖨️ PDF exportieren</button>
           <button class="ghost" id="jsonBtn">⬇️ Backup (JSON)</button>
           <button class="ghost" id="importBtn">⬆️ Backup importieren</button>
           <input id="importFile" type="file" accept=".json" style="display:none" />
@@ -180,6 +194,8 @@
         <code>index.html</code> ins Repository legen und Pages aktivieren.
       </p>
     </main>
+
+    <div id="printArea"></div>
 
     <script>
       /* ---------- Speicher ---------- */
@@ -358,6 +374,31 @@
           } catch (e) { alert("Ungültige Backup-Datei."); }
         };
         r.readAsText(f); ev.target.value = "";
+      });
+
+      /* ---------- PDF-Export (Druck) ---------- */
+      document.getElementById("pdfBtn").addEventListener("click", () => {
+        const n = entries.length;
+        if (!n) { alert("Keine Einträge zum Exportieren."); return; }
+        const avgSev = (entries.reduce((s, e) => s + e.severity, 0) / n).toFixed(1);
+        const avgTabs = (entries.reduce((s, e) => s + e.tablets, 0) / n).toFixed(1);
+        const esc = s => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+        const rows = entries.slice().reverse().map(e => {
+          const w = e.weather && e.weather.pressure != null
+            ? e.weather.pressure + " hPa" +
+              (e.weather.delta12 != null ? " / " + (e.weather.delta12 >= 0 ? "+" : "") + e.weather.delta12 : "")
+            : "–";
+          return `<tr><td>${esc(fmt(e.date))}</td><td>${e.from} – ${e.to}</td><td>${e.severity}</td>` +
+                 `<td>${e.tablets}</td><td>${w}</td><td>${esc(e.reason)}</td></tr>`;
+        }).join("");
+        document.getElementById("printArea").innerHTML =
+          `<h1>Kopfschmerz-Radar – Verlauf</h1>` +
+          `<p class="sub">Erstellt am ${new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })} · ${n} Einträge</p>` +
+          `<p class="stats">Einträge: <b>${n}</b> · Ø Stärke: <b>${avgSev}</b> · Ø Tabletten: <b>${avgTabs}</b> · Zeitraum: <b>${fmt(entries[0].date)} – ${fmt(entries[entries.length - 1].date)}</b></p>` +
+          `<p class="sub">Wetter: Luftdruck 12 Uhr / Änderung letzte 12 h (Open-Meteo)</p>` +
+          `<table><thead><tr><th>Datum</th><th>Zeitraum</th><th>Stärke</th><th>Tabletten</th><th>Luftdruck / Δ12h</th><th>Grund</th></tr></thead>` +
+          `<tbody>${rows}</tbody></table>`;
+        window.print();
       });
 
       /* ---------- GPS ---------- */
