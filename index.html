@@ -177,6 +177,7 @@
         <div class="toolbar">
           <button class="ghost" id="csvBtn">⬇️ CSV exportieren</button>
           <button class="ghost" id="pdfBtn">📄 PDF speichern</button>
+          <button class="ghost" id="reportBtn">📊 Analyse-PDF</button>
           <button class="ghost" id="jsonBtn">⬇️ Backup (JSON)</button>
           <button class="ghost" id="importBtn">⬆️ Backup importieren</button>
           <input id="importFile" type="file" accept=".json,.txt,application/json,text/plain" style="display:none" />
@@ -415,6 +416,35 @@
       const pdfEsc = s => latin(s).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
       const cut = (s, n) => { s = String(s || ""); return s.length > n ? s.slice(0, Math.max(0, n - 3)) + "..." : s; };
 
+      /* ---------- PDF-Baugruppe: Objekte zusammensetzen (Verlauf & Analyse) ---------- */
+      function assemblePdf(pages) {
+        const objs = [];
+        const addObj = body => objs.push(body);
+        addObj("<< /Type /Catalog /Pages 2 0 R >>");
+        const kids = pages.map((_, i) => (5 + 2 * i) + " 0 R").join(" ");
+        addObj("<< /Type /Pages /Kids [" + kids + "] /Count " + pages.length + " >>");
+        addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+        addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+        pages.forEach((p, i) => {
+          const stream = p.join("");
+          addObj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents " + (6 + 2 * i) + " 0 R >>");
+          addObj("<< /Length " + stream.length + " >>\nstream\n" + stream + "endstream");
+        });
+        let pdf = "%PDF-1.4\n";
+        const offsets = [];
+        objs.forEach((body, i) => {
+          offsets.push(pdf.length);
+          pdf += (i + 1) + " 0 obj\n" + body + "\nendobj\n";
+        });
+        const xrefPos = pdf.length;
+        pdf += "xref\n0 " + (objs.length + 1) + "\n0000000000 65535 f \n";
+        offsets.forEach(o => { pdf += String(o).padStart(10, "0") + " 00000 n \n"; });
+        pdf += "trailer\n<< /Size " + (objs.length + 1) + " /Root 1 0 R >>\nstartxref\n" + xrefPos + "\n%%EOF";
+        const bytes = new Uint8Array(pdf.length);
+        for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
+        return new Blob([bytes], { type: "application/pdf" });
+      }
+
       function buildPdf() {
         const n = entries.length;
         const avgSev = (entries.reduce((s, e) => s + e.severity, 0) / n).toFixed(1);
@@ -473,36 +503,149 @@
         pages.forEach((p, i) => {
           p.push(txt(288, 36, "Seite " + (i + 1) + " / " + pages.length, false, 8));
         });
+        return assemblePdf(pages);
+        }
 
-        // PDF-Objekte zusammensetzen
-        const objs = [];
-        const addObj = body => objs.push(body);
-        addObj("<< /Type /Catalog /Pages 2 0 R >>");
-        const kids = pages.map((_, i) => (5 + 2 * i) + " 0 R").join(" ");
-        addObj("<< /Type /Pages /Kids [" + kids + "] /Count " + pages.length + " >>");
-        addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
-        addObj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
-        pages.forEach((p, i) => {
-          const stream = p.join("");
-          addObj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + PW + " " + PH + "] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents " + (6 + 2 * i) + " 0 R >>");
-          addObj("<< /Length " + stream.length + " >>\nstream\n" + stream + "endstream");
+        /* ---------- Analyse-PDF (2024-2026, statistische Auswertung) ---------- */
+        function buildReportPdf() {
+          const PW = 595, PH = 842, ML = 50, MR = 545;
+          const pages = [];
+          const txt = (x, y, t, bold, size) =>
+            `BT /F${bold ? 2 : 1} ${size || 9} Tf 1 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)} Tm (${pdfEsc(t)}) Tj ET\n`;
+          const line = (x1, y1, x2) => `0.8 w ${x1} ${y1} m ${x2} ${y1} l S\n`;
+          const rect = (x, y, w, h, rgb) => `q ${rgb} rg ${x.toFixed(1)} ${y.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)} re f Q\n`;
+
+          let cur = null, y = 0, pageIdx = 0;
+          const newPage = () => { cur = []; pages.push(cur); pageIdx++; y = 800;
+            cur.push(txt(288, 30, "Seite " + pageIdx, false, 8)); };
+          const need = h => { if (y - h < 60) newPage(); };
+          const h1 = (t) => { need(30); cur.push(txt(ML, 806 - 0, t, true, 15)); y = 780; };
+          const sec = (t) => { need(34); y -= 10; cur.push(txt(ML, y, t, true, 12)); y -= 4; cur.push(line(ML, y, MR)); y -= 14; };
+          const para = (t, size) => { need(16); cur.push(txt(ML, y, t, false, size || 9.5)); y -= 14; };
+          const kv = (k, v) => { need(14); cur.push(txt(ML, y, k, false, 9.5)); cur.push(txt(ML + 150, y, v, true, 9.5)); y -= 14; };
+
+          // einfacher Balkendiagramm-Helfer: Label | Wert | Balken
+          const barRow = (label, val, max, unit) => {
+            need(15);
+            const num = parseFloat(String(val).replace(",", ".")) || 0;
+            cur.push(txt(ML, y, label, false, 9));
+            const w = Math.max(1, (num / max) * 220);
+            cur.push(rect(ML + 200, y - 2, w, 9, "0.14 0.27 0.48"));
+            cur.push(txt(ML + 200 + w + 6, y, val + (unit || ""), true, 8.5));
+            y -= 15;
+          };
+
+          newPage();
+          cur.push(txt(ML, 806, "Kopfschmerz-Analyse 2024-2026", true, 15));
+          cur.push(txt(ML, 790, "12. Juli 2024 - 24. Oktober 2026 · Stand: " + new Date().toLocaleDateString("de-DE"), false, 9));
+          y = 762;
+
+          sec("1. Überblick");
+          kv("Dokumentierte Kopfschmerz-Ereignisse:", "148");
+          kv("Beobachtungszeitraum:", "835 Kalendertage");
+          kv("Tage mit Kopfschmerz (Grundrate):", "17,7 %");
+          kv("Medianer Abstand zwischen Ereignissen:", "4 Tage");
+          kv("Schweregrad Ø:", "leicht bis mittel (St. 3 nur 21-mal)");
+
+          sec("2. Wichtigste Befunde");
+          para("- MITTWOCH ist der Risikotag Nr. 1: 25,2 % Kopfschmerz-Wahrscheinlichkeit,");
+          para("  doppelt so hoch wie Montag (10,1 %) und Sonntag (11,8 %).");
+          para("- Saisonale Spitzen: APRIL, MAI und OKTOBER (je ca. 23-24 % der Tage),");
+          para("  ruhigste Monate: März, September, November (11-13 %).");
+          para("- Fast wöchentlicher Rhythmus: Abstände von 5-7 Tagen besonders häufig;");
+          para("  dazu kurze Cluster (1-2 Tage), v. a. bei Erkältung oder Wetterumschwung.");
+          para("- 61 % der Kopfschmerzen beginnen NACHTS oder MORGENS (Aufwach-");
+          para("  kopfschmerzen); nachmittags nur 14-mal, abends nur 1-mal.");
+          para("- Luftdruck bestätigt als Trigger: 20,9 % Risiko bei starkem Druckabfall");
+          para("  (24 h <= -4 hPa) vs. 11,3 % bei Druckanstieg (>= +4 hPa).");
+
+          sec("3. Wochentage (Anteil der Tage mit Kopfschmerz)");
+          barRow("Montag", "10,1 %", 30, "");
+          barRow("Dienstag", "14,3 %", 30, "");
+          barRow("Mittwoch", "25,2 %", 30, "");
+          barRow("Donnerstag", "18,5 %", 30, "");
+          barRow("Freitag", "21,7 %", 30, "");
+          barRow("Samstag", "22,5 %", 30, "");
+          barRow("Sonntag", "11,8 %", 30, "");
+
+          sec("4. Monate (aggregiert über alle Jahre)");
+          barRow("Januar", "12,9 %", 30, "");
+          barRow("Februar", "16,1 %", 30, "");
+          barRow("März", "11,3 %", 30, "");
+          barRow("April", "23,3 %", 30, "");
+          barRow("Mai", "24,2 %", 30, "");
+          barRow("Juni", "18,3 %", 30, "");
+          barRow("Juli", "19,5 %", 30, "");
+          barRow("August", "19,4 %", 30, "");
+          barRow("September", "13,3 %", 30, "");
+          barRow("Oktober", "24,4 %", 30, "");
+          barRow("November", "13,3 %", 30, "");
+          barRow("Dezember", "14,5 %", 30, "");
+
+          newPage();
+          cur.push(txt(ML, 806, "Kopfschmerz-Analyse 2024-2026", true, 15));
+          y = 780;
+
+          sec("5. Zyklen und Abstände (147 Abstände)");
+          barRow("1-2 Tage", "51", 60, "x");
+          barRow("3-4 Tage", "24", 60, "x");
+          barRow("5-7 Tage", "37", 60, "x");
+          barRow("8-14 Tage", "24", 60, "x");
+          barRow("15-30 Tage", "10", 60, "x");
+          barRow("über 30 Tage", "1", 60, "x");
+          y -= 4;
+          para("Längste kopfschmerzfreie Phasen: 1.-26.12.2025 (25 Tage), 22.8.-25.9.2026 (34 Tage).");
+          para("Von 97 Episoden verliefen 65 als einzelner Kopfschmerztag; längste Serie: 5 Tage (Erkältung).");
+
+          sec("6. Tageszeit des Beginns (148 Ereignisse)");
+          barRow("morgens", "57", 60, "x");
+          barRow("vormittags", "43", 60, "x");
+          barRow("nachts / Aufwachen", "34", 60, "x");
+          barRow("nachmittags", "13", 60, "x");
+          barRow("abends", "1", 60, "x");
+
+          sec("7. Auslöser (dokumentiert)");
+          para("- Erkältung / Schnupfen / Nebenhöhlen: 17 Ereignisse (Dez 2024, Mai 2025,");
+          para("  Okt-Nov 2025, Apr 2026)");
+          para("- Alkohol: 3 Ereignisse (Jul-Okt 2024)");
+          para("- Tiefdruck / Wetterumschwung explizit vermerkt: 2 (Okt 2026)");
+          para("- Ohne Vermerk: 126 Ereignisse");
+
+          sec("8. Luftdruck-Korrelation");
+          barRow("Druckabfall 24 h <= -4 hPa", "20,9 %", 30, "");
+          barRow("Druck stabil (+/-4 hPa)", "14,6 %", 30, "");
+          barRow("Druckanstieg >= +4 hPa", "11,3 %", 30, "");
+          y -= 4;
+          para("Basis: ERA5-Luftdruckdaten (Open-Meteo) für Rostock, verknüpft mit der");
+          para("Selbst-Dokumentation. Daraus berechnet der Radar das Tagesrisiko.");
+
+          y -= 8;
+          cur.push(line(ML, y, MR)); y -= 16;
+          para("Hinweis: Auswertung auf Basis von Selbst-Dokumentation (148 Ereignisse, 27 Monate).", 8);
+          para("Wochentags- und Monatsmuster sind starke Trends; Einzelunterschiede können zufällig sein.", 8);
+          para("Die Auswertung dient der Selbstbeobachtung und ersetzt keine medizinische Beratung.", 8);
+
+          return assemblePdf(pages);
+        }
+
+        document.getElementById("reportBtn").addEventListener("click", async () => {
+          const blob = buildReportPdf();
+          const fileName = "kopfschmerz-analyse-2024-2026.pdf";
+          try {
+            const file = new File([blob], fileName, { type: "application/pdf" });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file] });
+              return;
+            }
+          } catch (err) {
+            if (err && err.name === "AbortError") return;
+          }
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = fileName;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(a.href), 10000);
         });
-
-        let pdf = "%PDF-1.4\n";
-        const offsets = [];
-        objs.forEach((body, i) => {
-          offsets.push(pdf.length);
-          pdf += (i + 1) + " 0 obj\n" + body + "\nendobj\n";
-        });
-        const xrefPos = pdf.length;
-        pdf += "xref\n0 " + (objs.length + 1) + "\n0000000000 65535 f \n";
-        offsets.forEach(o => { pdf += String(o).padStart(10, "0") + " 00000 n \n"; });
-        pdf += "trailer\n<< /Size " + (objs.length + 1) + " /Root 1 0 R >>\nstartxref\n" + xrefPos + "\n%%EOF";
-
-        const bytes = new Uint8Array(pdf.length);
-        for (let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
-        return new Blob([bytes], { type: "application/pdf" });
-      }
 
       document.getElementById("pdfBtn").addEventListener("click", async () => {
         if (!entries.length) { alert("Keine Eintr\u00e4ge zum Exportieren."); return; }
